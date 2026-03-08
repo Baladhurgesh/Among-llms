@@ -1,6 +1,7 @@
 const state = {
   episodes: [],
   currentObservation: null,
+  socket: null,
 };
 
 const episodeSelect = document.getElementById("episodeSelect");
@@ -23,6 +24,22 @@ function pretty(value) {
   return JSON.stringify(value, null, 2);
 }
 
+function unwrapObservationMessage(payload) {
+  const data = payload?.data || {};
+  if (data.observation) {
+    return {
+      observation: data.observation,
+      reward: data.reward,
+      done: data.done,
+    };
+  }
+  return {
+    observation: data,
+    reward: data.reward,
+    done: data.done,
+  };
+}
+
 async function getJson(path, options = {}) {
   const response = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -33,6 +50,55 @@ async function getJson(path, options = {}) {
     throw new Error(`${response.status}: ${text}`);
   }
   return response.json();
+}
+
+function ensureSocket() {
+  if (state.socket && state.socket.readyState === WebSocket.OPEN) {
+    return Promise.resolve(state.socket);
+  }
+  if (state.socket && state.socket.readyState === WebSocket.CONNECTING) {
+    return new Promise((resolve, reject) => {
+      state.socket.addEventListener("open", () => resolve(state.socket), {
+        once: true,
+      });
+      state.socket.addEventListener(
+        "error",
+        () => reject(new Error("websocket connect failed")),
+        { once: true },
+      );
+    });
+  }
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const ws = new WebSocket(`${proto}//${window.location.host}/ws`);
+  state.socket = ws;
+  return new Promise((resolve, reject) => {
+    ws.addEventListener("open", () => resolve(ws), { once: true });
+    ws.addEventListener("error", () => reject(new Error("websocket connect failed")), {
+      once: true,
+    });
+  });
+}
+
+async function wsRequest(message) {
+  const ws = await ensureSocket();
+  return new Promise((resolve, reject) => {
+    const onMessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.type === "error") {
+          reject(new Error(payload.data?.message || "server error"));
+          return;
+        }
+        resolve(payload);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    const onError = () => reject(new Error("websocket error"));
+    ws.addEventListener("message", onMessage, { once: true });
+    ws.addEventListener("error", onError, { once: true });
+    ws.send(JSON.stringify(message));
+  });
 }
 
 function selectedEpisode() {
@@ -81,11 +147,14 @@ async function resetEnv() {
     return;
   }
   setStatus(`resetting ${ep.episode_id}...`);
-  const data = await getJson("/reset", {
-    method: "POST",
-    body: JSON.stringify({ episode_id: ep.episode_id }),
+  const response = await wsRequest({
+    type: "reset",
+    data: { episode_id: ep.episode_id },
   });
-  state.currentObservation = data.observation;
+  const parsed = unwrapObservationMessage(response);
+  state.currentObservation = parsed.observation;
+  state.currentObservation.reward = parsed.reward ?? state.currentObservation.reward;
+  state.currentObservation.done = parsed.done ?? state.currentObservation.done;
   traceBox.textContent = state.currentObservation.oversight_input || "";
   updateResults(state.currentObservation);
   setStatus(`ready (${ep.episode_id})`);
@@ -104,13 +173,16 @@ async function submitStep() {
     return;
   }
   setStatus("submitting step...");
-  const data = await getJson("/step", {
-    method: "POST",
-    body: JSON.stringify({ action }),
+  const response = await wsRequest({
+    type: "step",
+    data: action,
   });
-  state.currentObservation = data.observation;
+  const parsed = unwrapObservationMessage(response);
+  state.currentObservation = parsed.observation;
+  state.currentObservation.reward = parsed.reward ?? state.currentObservation.reward;
+  state.currentObservation.done = parsed.done ?? state.currentObservation.done;
   updateResults(state.currentObservation);
-  setStatus(`done: reward=${data.reward}`);
+  setStatus(`done: reward=${state.currentObservation.reward}`);
 }
 
 async function bootstrap() {
