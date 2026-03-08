@@ -3,18 +3,25 @@
 The reward function uses AgentForgeOversightEnvironment.reset() + .step()
 instead of calling compute_reward directly, so the full environment loop
 is exercised — ready for future attacker/defender models.
+
+env.state is read after every step to capture reward component breakdowns,
+errors, and curriculum metadata.  A TRL callback flushes aggregated stats
+to the active logger (wandb / tensorboard / console) every N steps.
 """
 from __future__ import annotations
 
 import argparse
+import collections
 import json
 import logging
 import sys
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from datasets import load_dataset
 from peft import LoraConfig
+from transformers import TrainerCallback
 from trl import GRPOConfig, GRPOTrainer
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -91,8 +98,107 @@ def _tail_penalty(text: str) -> float:
     return -min(1.0, len(tail) / 200.0)
 
 
-def build_openenv_reward_func(env: AgentForgeOversightEnvironment):
-    """Build a reward function that scores via the OpenEnv environment."""
+# ---------------------------------------------------------------------------
+# Stats collector — accumulates env.state data between callback flushes
+# ---------------------------------------------------------------------------
+
+class EnvStatsCollector:
+    """Thread-unsafe accumulator for per-step environment diagnostics."""
+
+    def __init__(self) -> None:
+        self.reward_components: dict[str, list[float]] = collections.defaultdict(list)
+        self.total_rewards: list[float] = []
+        self.error_counts: list[int] = []
+        self.curriculum_snapshots: list[dict[str, Any]] = []
+        self.action_mismatch_count = 0
+        self.episode_count = 0
+
+    def record(self, env: AgentForgeOversightEnvironment) -> None:
+        state = env.state
+        self.episode_count += 1
+
+        details = state.reward_details
+        if details:
+            self.total_rewards.append(float(details.get("total_reward", 0.0)))
+            for key, val in details.get("components", {}).items():
+                self.reward_components[key].append(float(val))
+
+        self.error_counts.append(len(state.errors))
+
+        if state.last_action and state.episode:
+            gt = state.episode.get("ground_truth", {})
+            if state.last_action.get("attack_detected") != gt.get("attack_present"):
+                self.action_mismatch_count += 1
+
+        meta = state.logs[-1] if state.logs else {}
+        if "curriculum" in meta or hasattr(state, "filters") and "difficulty" in state.filters:
+            self.curriculum_snapshots.append({
+                "difficulty": state.filters.get("difficulty"),
+                "step_count": state.step_count,
+            })
+
+    def flush(self) -> dict[str, float]:
+        """Return aggregated metrics and reset buffers."""
+        metrics: dict[str, float] = {}
+        if self.total_rewards:
+            arr = np.array(self.total_rewards)
+            metrics["env/reward_mean"] = float(arr.mean())
+            metrics["env/reward_std"] = float(arr.std())
+            metrics["env/reward_min"] = float(arr.min())
+            metrics["env/reward_max"] = float(arr.max())
+        for comp, vals in self.reward_components.items():
+            metrics[f"env/component_{comp}_mean"] = float(np.mean(vals))
+        if self.error_counts:
+            metrics["env/error_rate"] = float(np.mean([1 if c > 0 else 0 for c in self.error_counts]))
+        metrics["env/episodes"] = float(self.episode_count)
+        metrics["env/attack_mismatch_rate"] = (
+            self.action_mismatch_count / max(self.episode_count, 1)
+        )
+        if self.curriculum_snapshots:
+            metrics["env/curriculum_difficulty"] = float(
+                self.curriculum_snapshots[-1].get("difficulty", 0) or 0
+            )
+
+        self.reward_components.clear()
+        self.total_rewards.clear()
+        self.error_counts.clear()
+        self.curriculum_snapshots.clear()
+        self.action_mismatch_count = 0
+        self.episode_count = 0
+        return metrics
+
+
+# ---------------------------------------------------------------------------
+# TRL callback — periodically flushes env stats to the active logger
+# ---------------------------------------------------------------------------
+
+class EnvStatsCallback(TrainerCallback):
+    def __init__(self, collector: EnvStatsCollector, flush_every: int = 5) -> None:
+        self.collector = collector
+        self.flush_every = flush_every
+
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        if state.global_step % self.flush_every != 0:
+            return
+        metrics = self.collector.flush()
+        if not metrics:
+            return
+        if logs is not None:
+            logs.update(metrics)
+        logger.info("EnvStats step=%d: %s", state.global_step,
+                     {k: round(v, 4) for k, v in metrics.items()})
+
+
+# ---------------------------------------------------------------------------
+# Reward function wired to env + stats collector
+# ---------------------------------------------------------------------------
+
+def build_openenv_reward_func(
+    env: AgentForgeOversightEnvironment,
+    collector: EnvStatsCollector | None = None,
+):
+    """Build a reward function that scores via the OpenEnv environment
+    and records detailed state into *collector* after every env.step()."""
 
     def reward_func(
         prompts: list[Any],
@@ -132,6 +238,9 @@ def build_openenv_reward_func(env: AgentForgeOversightEnvironment):
                 env.reset(episode_id=ep_id)
                 obs = env.step(action)
                 env_reward = obs.reward
+
+                if collector is not None:
+                    collector.record(env)
             except Exception as e:
                 logger.warning("Env step failed for %s: %s", ep_id, e)
                 env_reward = 0.0
@@ -198,7 +307,8 @@ def main() -> None:
     train_ds = load_dataset("json", data_files=args.train_file)["train"].map(_to_prompt_row)
     eval_ds = load_dataset("json", data_files=args.dev_file)["train"].map(_to_prompt_row)
 
-    reward_func = build_openenv_reward_func(env)
+    collector = EnvStatsCollector()
+    reward_func = build_openenv_reward_func(env, collector=collector)
 
     eos_ids = [QWEN_IM_END_ID, QWEN_ENDOFTEXT_ID]
     grpo_args = GRPOConfig(
@@ -248,6 +358,7 @@ def main() -> None:
         peft_config=peft_config,
     )
 
+    trainer.add_callback(EnvStatsCallback(collector, flush_every=args.logging_steps))
     trainer.eos_token_id = QWEN_ENDOFTEXT_ID
     logger.info("EOS token IDs: %s, masking: %d", eos_ids, trainer.eos_token_id)
 

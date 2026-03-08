@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentforge-oversight"
+version = "0.1.0"
+description = "OpenEnv environment for AgentForge oversight benchmarking"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi",
+  "gradio",
+  "jsonschema",
+  "matplotlib",
+  "openenv-core",
+  "pillow",
+  "pydantic",
+  "uvicorn",
+]
+
+[tool.setuptools.packages.find]
+include = ["agentforge_env*", "demo*"]
