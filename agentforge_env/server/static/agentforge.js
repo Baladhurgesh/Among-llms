@@ -4,8 +4,13 @@ const state = {
   currentEnvState: null,
   socket: null,
 };
+const PREFS_KEY = "agentforge_ui_prefs_v1";
 
+const modeSelect = document.getElementById("modeSelect");
 const episodeSelect = document.getElementById("episodeSelect");
+const difficultySelect = document.getElementById("difficultySelect");
+const trackSelect = document.getElementById("trackSelect");
+const attackFamilySelect = document.getElementById("attackFamilySelect");
 const resetBtn = document.getElementById("resetBtn");
 const loadGoldBtn = document.getElementById("loadGoldBtn");
 const loadDefaultBtn = document.getElementById("loadDefaultBtn");
@@ -23,6 +28,48 @@ function setStatus(message) {
 
 function pretty(value) {
   return JSON.stringify(value, null, 2);
+}
+
+function readPrefs() {
+  try {
+    const raw = window.localStorage.getItem(PREFS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePrefs() {
+  const prefs = {
+    mode: modeSelect.value,
+    episode_id: episodeSelect.value,
+    difficulty: difficultySelect.value,
+    track: trackSelect.value,
+    attack_family: attackFamilySelect.value,
+  };
+  window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+}
+
+function applyStoredPrefs() {
+  const prefs = readPrefs();
+  if (prefs.mode && modeSelect.querySelector(`option[value="${prefs.mode}"]`)) {
+    modeSelect.value = prefs.mode;
+  }
+  if (prefs.episode_id && episodeSelect.querySelector(`option[value="${prefs.episode_id}"]`)) {
+    episodeSelect.value = prefs.episode_id;
+  }
+  if (prefs.difficulty && difficultySelect.querySelector(`option[value="${prefs.difficulty}"]`)) {
+    difficultySelect.value = prefs.difficulty;
+  }
+  if (prefs.track && trackSelect.querySelector(`option[value="${prefs.track}"]`)) {
+    trackSelect.value = prefs.track;
+  }
+  if (
+    prefs.attack_family &&
+    attackFamilySelect.querySelector(`option[value="${prefs.attack_family}"]`)
+  ) {
+    attackFamilySelect.value = prefs.attack_family;
+  }
 }
 
 function unwrapObservationMessage(payload) {
@@ -106,6 +153,20 @@ function selectedEpisode() {
   return state.episodes.find((ep) => ep.episode_id === episodeSelect.value);
 }
 
+function buildFilters() {
+  const filters = {};
+  if (difficultySelect.value !== "any") {
+    filters.difficulty = Number(difficultySelect.value);
+  }
+  if (trackSelect.value !== "any") {
+    filters.track = trackSelect.value;
+  }
+  if (attackFamilySelect.value !== "any") {
+    filters.attack_family = attackFamilySelect.value;
+  }
+  return filters;
+}
+
 function updateResults(observation) {
   const rewardDetails =
     state.currentEnvState?.reward_details ||
@@ -138,9 +199,36 @@ async function loadEpisodes() {
     opt.textContent = `${ep.episode_id} | ${ep.track} | d${ep.difficulty}`;
     episodeSelect.appendChild(opt);
   }
+  difficultySelect.innerHTML = '<option value="any">Any</option>';
+  for (const level of [1, 2, 3, 4, 5]) {
+    const opt = document.createElement("option");
+    opt.value = String(level);
+    opt.textContent = `d${level}`;
+    difficultySelect.appendChild(opt);
+  }
+
+  trackSelect.innerHTML = '<option value="any">Any</option>';
+  const tracks = [...new Set(state.episodes.map((ep) => ep.track))].sort();
+  for (const track of tracks) {
+    const opt = document.createElement("option");
+    opt.value = track;
+    opt.textContent = track;
+    trackSelect.appendChild(opt);
+  }
+
+  attackFamilySelect.innerHTML = '<option value="any">Any</option>';
+  const families = [...new Set(state.episodes.map((ep) => ep.attack_family))].sort();
+  for (const family of families) {
+    const opt = document.createElement("option");
+    opt.value = family;
+    opt.textContent = family;
+    attackFamilySelect.appendChild(opt);
+  }
+
   if (state.episodes.length > 0) {
     episodeSelect.value = state.episodes[0].episode_id;
   }
+  applyStoredPrefs();
 }
 
 async function loadDefaultAction() {
@@ -156,15 +244,24 @@ function loadGoldAction() {
 
 async function resetEnv() {
   const ep = selectedEpisode();
-  if (!ep) {
+  const mode = modeSelect.value;
+  if (!ep && mode === "episode") {
     setStatus("no episode selected");
     return;
   }
-  setStatus(`resetting ${ep.episode_id}...`);
+  const filters = buildFilters();
+  const payload = {};
+  if (mode === "episode") {
+    payload.episode_id = ep.episode_id;
+  } else if (Object.keys(filters).length > 0) {
+    payload.filters = filters;
+  }
+  const modeLabel = mode === "episode" ? ep.episode_id : `sample ${JSON.stringify(filters)}`;
+  setStatus(`resetting ${modeLabel}...`);
   try {
     const response = await wsRequest({
       type: "reset",
-      data: { episode_id: ep.episode_id },
+      data: payload,
     });
     const parsed = unwrapObservationMessage(response);
     state.currentObservation = parsed.observation;
@@ -173,7 +270,8 @@ async function resetEnv() {
     await refreshEnvState();
     traceBox.textContent = state.currentObservation.oversight_input || "";
     updateResults(state.currentObservation);
-    setStatus(`ready (${ep.episode_id})`);
+    savePrefs();
+    setStatus(`ready (${state.currentObservation.episode_id})`);
   } catch (err) {
     setStatus(`reset failed: ${err.message}`);
   }
@@ -214,6 +312,7 @@ async function bootstrap() {
   try {
     await loadEpisodes();
     await loadDefaultAction();
+    savePrefs();
     setStatus("idle");
   } catch (err) {
     setStatus(`error: ${err.message}`);
@@ -224,5 +323,10 @@ resetBtn.addEventListener("click", resetEnv);
 loadGoldBtn.addEventListener("click", loadGoldAction);
 loadDefaultBtn.addEventListener("click", loadDefaultAction);
 stepBtn.addEventListener("click", submitStep);
+modeSelect.addEventListener("change", savePrefs);
+episodeSelect.addEventListener("change", savePrefs);
+difficultySelect.addEventListener("change", savePrefs);
+trackSelect.addEventListener("change", savePrefs);
+attackFamilySelect.addEventListener("change", savePrefs);
 
 bootstrap();
