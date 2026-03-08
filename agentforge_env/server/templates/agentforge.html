@@ -3,61 +3,128 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Among LLMs - AgentForge Console</title>
+    <title>Among LLMs — AgentForge Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/ui/static/agentforge.css" />
   </head>
   <body>
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="spinner"></div>
+      <span>Connecting…</span>
+    </div>
+
+    <div id="toastContainer" class="toast-container"></div>
+
     <main class="page">
       <header class="hero">
-        <h1>Among LLMs</h1>
-        <p>AgentForge Oversight Judge Console</p>
+        <div class="hero-text">
+          <h1>Among <span class="accent">LLMs</span></h1>
+          <p class="subtitle">AgentForge Oversight Judge Console</p>
+        </div>
+        <div class="hero-badges">
+          <span id="wsBadge" class="badge badge-disconnected" title="WebSocket status">● Disconnected</span>
+        </div>
       </header>
 
       <section class="panel controls">
-        <div class="row">
-          <label for="modeSelect">Mode</label>
-          <select id="modeSelect">
-            <option value="episode">Specific Episode</option>
-            <option value="sample">Sample by Filters</option>
-          </select>
-          <label for="episodeSelect">Episode</label>
-          <select id="episodeSelect"></select>
-          <label for="difficultySelect">Difficulty</label>
-          <select id="difficultySelect"></select>
-          <label for="trackSelect">Track</label>
-          <select id="trackSelect"></select>
-          <label for="attackFamilySelect">Attack Family</label>
-          <select id="attackFamilySelect"></select>
-          <button id="resetBtn">Reset</button>
-          <button id="loadGoldBtn">Load Gold</button>
-          <button id="loadDefaultBtn">Load Default</button>
-          <button id="stepBtn">Submit Step</button>
+        <div class="control-group">
+          <div class="control-field">
+            <label for="modeSelect">Mode</label>
+            <select id="modeSelect">
+              <option value="episode">Specific Episode</option>
+              <option value="sample">Sample by Filters</option>
+            </select>
+          </div>
+          <div class="control-field" id="episodeField">
+            <label for="episodeSelect">Episode</label>
+            <select id="episodeSelect"></select>
+          </div>
+          <div class="control-field filter-field">
+            <label for="difficultySelect">Difficulty</label>
+            <select id="difficultySelect"></select>
+          </div>
+          <div class="control-field filter-field">
+            <label for="trackSelect">Track</label>
+            <select id="trackSelect"></select>
+          </div>
+          <div class="control-field filter-field">
+            <label for="attackFamilySelect">Attack Family</label>
+            <select id="attackFamilySelect"></select>
+          </div>
         </div>
-        <div id="statusLine" class="status">Status: idle</div>
+        <div class="action-group">
+          <button id="resetBtn" class="btn btn-secondary" title="Ctrl + R">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            Reset
+          </button>
+          <button id="loadGoldBtn" class="btn btn-outline" title="Load gold-standard action">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Gold
+          </button>
+          <button id="loadDefaultBtn" class="btn btn-outline" title="Load default action template">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Default
+          </button>
+          <button id="stepBtn" class="btn btn-primary" title="Ctrl + Enter">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            Submit
+          </button>
+        </div>
+        <div id="statusLine" class="status">Idle</div>
       </section>
 
-      <section class="grid">
-        <article class="panel">
-          <h2>Trace</h2>
-          <pre id="traceBox"></pre>
+      <section class="grid grid-main">
+        <article class="panel card">
+          <div class="card-header">
+            <h2>Trace</h2>
+            <button class="icon-btn copy-btn" data-target="traceBox" title="Copy to clipboard">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+          <pre id="traceBox" class="code-block"></pre>
         </article>
-        <article class="panel">
-          <h2>Action JSON</h2>
-          <textarea id="actionBox"></textarea>
+        <article class="panel card">
+          <div class="card-header">
+            <h2>Action JSON</h2>
+            <button class="icon-btn copy-btn" data-target="actionBox" title="Copy to clipboard">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+          <textarea id="actionBox" class="code-block" spellcheck="false"></textarea>
         </article>
       </section>
 
-      <section class="grid">
-        <article class="panel">
-          <h2>Reward</h2>
-          <div id="rewardTotal">-</div>
-          <pre id="rewardComponents"></pre>
+      <section class="grid grid-bottom">
+        <article class="panel card">
+          <div class="card-header">
+            <h2>Reward</h2>
+          </div>
+          <div id="rewardTotal" class="reward-value">—</div>
+          <pre id="rewardComponents" class="code-block code-block-sm"></pre>
         </article>
-        <article class="panel">
-          <h2>Logs & Errors</h2>
-          <pre id="logsBox"></pre>
+        <article class="panel card">
+          <div class="card-header">
+            <h2>Logs &amp; Errors</h2>
+            <button class="icon-btn copy-btn" data-target="logsBox" title="Copy to clipboard">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+          <pre id="logsBox" class="code-block"></pre>
         </article>
       </section>
+
+      <footer class="page-footer">
+        <span class="muted">AgentForge Oversight Console</span>
+        <span class="muted kbd-hint">
+          <kbd>Ctrl</kbd>+<kbd>R</kbd> Reset &nbsp;
+          <kbd>Ctrl</kbd>+<kbd>Enter</kbd> Submit
+        </span>
+      </footer>
     </main>
     <script src="/ui/static/agentforge.js"></script>
   </body>
