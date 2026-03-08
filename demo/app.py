@@ -657,101 +657,55 @@ def build_demo() -> gr.Blocks:
                 "the attacker injection, the compromised defender, and how the overseer "
                 "verdict changes **before vs after RL training**."
             )
-            _frame_names = [
-                ("01_title", "Overview"),
-                ("02_scenario", "Scenario"),
-                ("03_ground_truth", "Ground Truth"),
-                ("04_before_training", "Before RL"),
-                ("05_after_training", "After RL"),
-                ("06_comparison", "Comparison"),
-                ("07_pipeline", "Pipeline"),
+            _frame_labels = [
+                ("01_title", "1/7 — Overview"),
+                ("02_scenario", "2/7 — The Scenario"),
+                ("03_ground_truth", "3/7 — Ground Truth"),
+                ("04_before_training", "4/7 — Before RL"),
+                ("05_after_training", "5/7 — After RL"),
+                ("06_comparison", "6/7 — Comparison"),
+                ("07_pipeline", "7/7 — Pipeline"),
             ]
-            _frame_b64s = []
-            for fname, _ in _frame_names:
+            _frame_images = []
+            for fname, _ in _frame_labels:
                 fp = ROOT / f"agentforge_frame_{fname}.png"
                 if fp.exists():
-                    _frame_b64s.append(base64.b64encode(fp.read_bytes()).decode())
-            if _frame_b64s:
-                _img_js_array = ",".join(f'"{b}"' for b in _frame_b64s)
-                _label_js_array = ",".join(f'"{l}"' for _, l in _frame_names)
-                gr.HTML(f"""
-                <div id="wf-carousel" style="position:relative;max-width:100%;margin:16px auto 28px;
-                            user-select:none;">
-                  <!-- Image -->
-                  <img id="wf-img" src="data:image/png;base64,{_frame_b64s[0]}"
-                       style="width:100%;border-radius:14px;
-                              border:1px solid rgba(91,142,255,0.15);
-                              box-shadow:0 4px 24px rgba(0,0,0,0.4);
-                              transition:opacity 0.3s ease;" />
-                  <!-- Left arrow -->
-                  <button id="wf-prev" onclick="wfNav(-1)" style="
-                      position:absolute;left:12px;top:50%;transform:translateY(-50%);
-                      width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;
-                      background:rgba(0,0,0,0.6);color:#fff;font-size:20px;font-weight:700;
-                      backdrop-filter:blur(8px);transition:all 0.2s ease;
-                      display:flex;align-items:center;justify-content:center;
-                      box-shadow:0 2px 12px rgba(0,0,0,0.3);">&#8249;</button>
-                  <!-- Right arrow -->
-                  <button id="wf-next" onclick="wfNav(1)" style="
-                      position:absolute;right:12px;top:50%;transform:translateY(-50%);
-                      width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;
-                      background:rgba(0,0,0,0.6);color:#fff;font-size:20px;font-weight:700;
-                      backdrop-filter:blur(8px);transition:all 0.2s ease;
-                      display:flex;align-items:center;justify-content:center;
-                      box-shadow:0 2px 12px rgba(0,0,0,0.3);">&#8250;</button>
-                  <!-- Bottom bar: dots + label -->
-                  <div style="display:flex;align-items:center;justify-content:center;gap:14px;
-                              margin-top:12px;">
-                    <div id="wf-dots" style="display:flex;gap:8px;align-items:center;"></div>
-                    <span id="wf-label" style="font-size:0.88em;font-weight:600;color:#8da0cc;
-                          letter-spacing:0.5px;min-width:100px;text-align:center;"></span>
-                    <span id="wf-counter" style="font-size:0.8em;color:#475569;font-weight:500;"></span>
-                  </div>
-                </div>
-                <script>
-                (function() {{
-                  const imgs = [{_img_js_array}];
-                  const labels = [{_label_js_array}];
-                  let idx = 0;
-                  const el = document.getElementById('wf-img');
-                  const dots = document.getElementById('wf-dots');
-                  const lbl = document.getElementById('wf-label');
-                  const ctr = document.getElementById('wf-counter');
-                  // build dots
-                  for (let i = 0; i < imgs.length; i++) {{
-                    const d = document.createElement('span');
-                    d.className = 'wf-dot';
-                    d.style.cssText = 'width:10px;height:10px;border-radius:50%;cursor:pointer;transition:all 0.2s ease;';
-                    d.onclick = function() {{ idx = i; render(); }};
-                    dots.appendChild(d);
-                  }}
-                  function render() {{
-                    el.style.opacity = 0.5;
-                    setTimeout(function() {{
-                      el.src = 'data:image/png;base64,' + imgs[idx];
-                      el.style.opacity = 1;
-                    }}, 150);
-                    lbl.textContent = labels[idx];
-                    ctr.textContent = (idx+1) + ' / ' + imgs.length;
-                    const allDots = dots.querySelectorAll('.wf-dot');
-                    allDots.forEach(function(d, i) {{
-                      d.style.background = i === idx ? '#5b8eff' : 'rgba(255,255,255,0.2)';
-                      d.style.transform = i === idx ? 'scale(1.3)' : 'scale(1)';
-                    }});
-                  }}
-                  window.wfNav = function(dir) {{
-                    idx = (idx + dir + imgs.length) % imgs.length;
-                    render();
-                  }};
-                  // keyboard support
-                  document.addEventListener('keydown', function(e) {{
-                    if (e.key === 'ArrowRight') wfNav(1);
-                    if (e.key === 'ArrowLeft') wfNav(-1);
-                  }});
-                  render();
-                }})();
-                </script>
-                """)
+                    _frame_images.append(PILImage.open(fp))
+            if _frame_images:
+                wf_state = gr.State(value=0)
+                wf_label = gr.Markdown(
+                    value=f"**{_frame_labels[0][1]}**",
+                    elem_classes=["wf-slide-label"],
+                )
+                wf_img = gr.Image(
+                    value=_frame_images[0],
+                    show_label=False,
+                    container=False,
+                    height=480,
+                )
+                with gr.Row():
+                    wf_prev = gr.Button("   Previous", size="sm", scale=1)
+                    wf_next = gr.Button("Next   ", size="sm", variant="primary", scale=1)
+
+                def _wf_navigate(idx, direction):
+                    n = len(_frame_images)
+                    new_idx = (idx + direction) % n
+                    return (
+                        _frame_images[new_idx],
+                        f"**{_frame_labels[new_idx][1]}**",
+                        new_idx,
+                    )
+
+                wf_prev.click(
+                    fn=lambda idx: _wf_navigate(idx, -1),
+                    inputs=[wf_state],
+                    outputs=[wf_img, wf_label, wf_state],
+                )
+                wf_next.click(
+                    fn=lambda idx: _wf_navigate(idx, 1),
+                    inputs=[wf_state],
+                    outputs=[wf_img, wf_label, wf_state],
+                )
 
             gr.Markdown("---")
             gr.Markdown("### How it works — the training loop")
