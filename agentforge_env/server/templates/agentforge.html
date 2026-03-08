@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Among LLMs - AgentForge Console</title>
+    <link rel="stylesheet" href="/ui/static/agentforge.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <h1>Among LLMs</h1>
+        <p>AgentForge Oversight Judge Console</p>
+      </header>
+
+      <section class="panel controls">
+        <div class="row">
+          <label for="episodeSelect">Episode</label>
+          <select id="episodeSelect"></select>
+          <button id="resetBtn">Reset</button>
+          <button id="loadGoldBtn">Load Gold</button>
+          <button id="loadDefaultBtn">Load Default</button>
+          <button id="stepBtn">Submit Step</button>
+        </div>
+        <div id="statusLine" class="status">Status: idle</div>
+      </section>
+
+      <section class="grid">
+        <article class="panel">
+          <h2>Trace</h2>
+          <pre id="traceBox"></pre>
+        </article>
+        <article class="panel">
+          <h2>Action JSON</h2>
+          <textarea id="actionBox"></textarea>
+        </article>
+      </section>
+
+      <section class="grid">
+        <article class="panel">
+          <h2>Reward</h2>
+          <div id="rewardTotal">-</div>
+          <pre id="rewardComponents"></pre>
+        </article>
+        <article class="panel">
+          <h2>Logs & Errors</h2>
+          <pre id="logsBox"></pre>
+        </article>
+      </section>
+    </main>
+    <script src="/ui/static/agentforge.js"></script>
+  </body>
+</html>

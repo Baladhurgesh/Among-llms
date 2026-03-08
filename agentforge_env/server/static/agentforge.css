@@ -1,0 +1,111 @@
+:root {
+  --bg: #0a0f1f;
+  --bg-alt: #121b33;
+  --panel: #10182d;
+  --line: #2a3d6c;
+  --text: #e8eefc;
+  --muted: #9bb0de;
+  --good: #26d58d;
+  --warn: #ffcf5c;
+  --bad: #ff6b6b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at 0 0, #1b2d59 0, var(--bg) 45%);
+  color: var(--text);
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+}
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.hero p {
+  margin-top: 0.2rem;
+  color: var(--muted);
+}
+
+.panel {
+  background: linear-gradient(145deg, var(--panel), var(--bg-alt));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.9rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.controls .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+select,
+button,
+textarea {
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #0e1530;
+  color: var(--text);
+}
+
+button {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: #5c7fd2;
+}
+
+select {
+  padding: 0.45rem;
+  min-width: 180px;
+}
+
+.status {
+  margin-top: 0.5rem;
+  color: var(--muted);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+}
+
+pre,
+textarea {
+  width: 100%;
+  min-height: 250px;
+  margin: 0;
+  padding: 0.7rem;
+  font-family: "JetBrains Mono", "SFMono-Regular", monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+#rewardTotal {
+  font-size: 2rem;
+  color: var(--good);
+  margin-bottom: 0.4rem;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
