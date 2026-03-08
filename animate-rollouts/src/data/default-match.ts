@@ -5,6 +5,7 @@ export const defaultMatchInput: MatchInput = {
   attackerName: 'Environment Attacker',
   defenderName: 'Task Defender',
   broadcastMode: false,
+  characterStyle: 'among-us',
   events: [
     {
       episode: 1,

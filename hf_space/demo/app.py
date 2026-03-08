@@ -360,6 +360,15 @@ def build_demo() -> gr.Blocks:
 
             gr.Markdown("---")
             gr.Markdown("### Imagine this: 3 agents build a payment API")
+            _payment_img = ROOT / "payment_api_impostor.png"
+            if _payment_img.exists():
+                with gr.Row():
+                    gr.Image(
+                        value=PILImage.open(_payment_img),
+                        show_label=False,
+                        height=180,
+                        container=False,
+                    )
             gr.Markdown(
                 "| Agent | Job |\n"
                 "|-------|-----|\n"

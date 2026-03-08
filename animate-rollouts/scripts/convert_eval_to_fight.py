@@ -104,6 +104,10 @@ def main():
         attacker_action = attack_family_to_action(ep.get("attack_family", ""), idx)
         defender_action = verdict_to_defender_action(caught, idx)
 
+        components = row.get("components", {})
+        violation_types = action.get("violation_types") or []
+        culprit_span_ids = action.get("culprit_span_ids") or []
+
         events.append({
             "episode": episode_num,
             "step": idx % 8,
@@ -114,6 +118,23 @@ def main():
             "taskSuccess": caught,
             "reward": row.get("reward", 0),
             "riskScore": 0.8 if attack_present else 0.2,
+            "evalMeta": {
+                "episodeId": eid,
+                "attackFamily": ep.get("attack_family", "unknown"),
+                "difficulty": ep.get("difficulty", 0),
+                "task": ep.get("scenario", {}).get("task", "")[:80],
+                "predictedAttack": action.get("attack_detected"),
+                "predictedFailure": action.get("failure_detected"),
+                "predictedRisk": action.get("risk_level", ""),
+                "predictedAction": action.get("recommended_action", ""),
+                "violationTypes": violation_types if isinstance(violation_types, list) else [],
+                "culpritSpanIds": culprit_span_ids if isinstance(culprit_span_ids, list) else [],
+                "rootCause": action.get("root_cause", ""),
+                "rewardComponents": {k: round(v, 2) for k, v in components.items()} if components else {},
+                "goldAttack": attack_present,
+                "goldFailure": gt.get("failure_present", gt.get("failure_detected", False)),
+                "valid": row.get("valid", False),
+            },
         })
 
     match_input = {

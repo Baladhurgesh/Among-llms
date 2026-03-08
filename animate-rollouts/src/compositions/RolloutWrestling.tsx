@@ -17,7 +17,7 @@ import {getExchangeProfile} from '../lib/action-profile';
 import {getEnvironmentTheme} from '../lib/env-theme';
 import {type FighterPose} from '../lib/sprite-data';
 import {compileMatch, getFrameContext, getScoreAtFrame} from '../lib/timeline';
-import type {CharacterStyle, CompiledRound, CompiledStep, MatchInput} from '../types';
+import type {CharacterStyle, CompiledRound, CompiledStep, MatchInput, RolloutEvent} from '../types';
 
 const clampConfig = {
   extrapolateLeft: 'clamp' as const,
@@ -435,6 +435,193 @@ const BroadcastMini = ({
   );
 };
 
+const EvalChip = ({label, value, good}: {label: string; value: boolean | undefined; good: boolean}) => {
+  const color = value === undefined ? '#888' : good ? '#7dffb3' : '#ff8c8c';
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '3px 7px',
+        borderRadius: 6,
+        border: `1px solid ${color}`,
+        backgroundColor: `${color}18`,
+        fontSize: 11,
+        color,
+        fontWeight: 600,
+      }}
+    >
+      <span>{value === undefined ? '?' : value ? '\u2713' : '\u2717'}</span>
+      <span>{label}</span>
+    </div>
+  );
+};
+
+const RewardBar = ({label, value, maxAbs}: {label: string; value: number; maxAbs: number}) => {
+  const positive = value >= 0;
+  const width = Math.max(0, (Math.abs(value) / Math.max(maxAbs, 0.01)) * 80);
+  return (
+    <div style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#d0e4ff'}}>
+      <div style={{width: 110, textAlign: 'right', opacity: 0.9}}>{label}</div>
+      <div
+        style={{
+          position: 'relative',
+          flex: 1,
+          height: 7,
+          borderRadius: 999,
+          backgroundColor: 'rgba(22, 33, 53, 0.85)',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: 0,
+            width: 1,
+            height: '100%',
+            backgroundColor: 'rgba(180, 200, 230, 0.5)',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            top: 1,
+            height: 5,
+            borderRadius: 999,
+            left: positive ? '50%' : `calc(50% - ${width}px)`,
+            width,
+            backgroundColor: positive ? '#7dffb3' : '#ff8c8c',
+          }}
+        />
+      </div>
+      <div style={{width: 36, fontFamily: 'Menlo, Consolas, monospace', fontSize: 9}}>
+        {value >= 0 ? '+' : ''}{value.toFixed(1)}
+      </div>
+    </div>
+  );
+};
+
+const formatRewardLabel = (key: string): string =>
+  key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+const EvalInfoPanel = ({event}: {event: RolloutEvent}) => {
+  const meta = event.evalMeta;
+  if (!meta) {
+    return null;
+  }
+
+  const components = meta.rewardComponents ?? {};
+  const componentEntries = Object.entries(components)
+    .filter(([, v]) => v !== 0)
+    .sort((a, b) => b[1] - a[1]);
+  const maxAbs = Math.max(1, ...componentEntries.map(([, v]) => Math.abs(v)));
+
+  const attackCorrect = meta.goldAttack !== undefined && meta.predictedAttack === meta.goldAttack;
+  const failureCorrect = meta.goldFailure !== undefined && meta.predictedFailure === meta.goldFailure;
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: 22,
+        top: 132,
+        width: 340,
+        borderRadius: 12,
+        backgroundColor: 'rgba(7, 13, 24, 0.92)',
+        border: '1px solid rgba(126, 176, 226, 0.48)',
+        padding: '10px 12px',
+        color: '#e7f4ff',
+        fontFamily: ringFont,
+      }}
+    >
+      <div style={{fontFamily: displayFont, fontSize: 16, letterSpacing: 1, color: '#ffd482'}}>
+        EVAL INTEL
+      </div>
+
+      {meta.task ? (
+        <div style={{fontSize: 11, marginTop: 4, opacity: 0.82, lineHeight: 1.3}}>
+          {meta.task}
+        </div>
+      ) : null}
+
+      <div style={{display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap'}}>
+        {meta.attackFamily ? (
+          <div style={{
+            fontSize: 10, padding: '2px 6px', borderRadius: 4,
+            backgroundColor: 'rgba(255, 140, 100, 0.18)', border: '1px solid #ff9c6a', color: '#ffb88a',
+          }}>
+            {meta.attackFamily.replace(/_/g, ' ')}
+          </div>
+        ) : null}
+        {meta.difficulty !== undefined ? (
+          <div style={{
+            fontSize: 10, padding: '2px 6px', borderRadius: 4,
+            backgroundColor: 'rgba(100, 180, 255, 0.15)', border: '1px solid #6db8ff', color: '#8ecfff',
+          }}>
+            Difficulty {meta.difficulty}
+          </div>
+        ) : null}
+      </div>
+
+      <div style={{
+        marginTop: 8,
+        padding: '6px 0',
+        borderTop: '1px solid rgba(126, 176, 226, 0.25)',
+      }}>
+        <div style={{fontFamily: displayFont, fontSize: 12, letterSpacing: 0.5, marginBottom: 4}}>
+          MODEL VERDICT
+        </div>
+        <div style={{display: 'flex', gap: 5, flexWrap: 'wrap'}}>
+          <EvalChip label="Attack" value={meta.predictedAttack} good={attackCorrect} />
+          <EvalChip label="Failure" value={meta.predictedFailure} good={failureCorrect} />
+          {meta.valid !== undefined ? (
+            <EvalChip label="Valid JSON" value={meta.valid} good={meta.valid === true} />
+          ) : null}
+        </div>
+        {meta.predictedRisk ? (
+          <div style={{fontSize: 11, marginTop: 4, color: '#ffd276'}}>
+            Risk: {meta.predictedRisk}
+          </div>
+        ) : null}
+        {meta.predictedAction ? (
+          <div style={{fontSize: 11, marginTop: 2, color: '#8ecfff'}}>
+            Action: {meta.predictedAction.replace(/_/g, ' ')}
+          </div>
+        ) : null}
+        {meta.rootCause ? (
+          <div style={{fontSize: 10, marginTop: 3, opacity: 0.76, lineHeight: 1.3}}>
+            {meta.rootCause.slice(0, 90)}
+          </div>
+        ) : null}
+      </div>
+
+      {componentEntries.length > 0 ? (
+        <div style={{
+          marginTop: 6,
+          padding: '6px 0',
+          borderTop: '1px solid rgba(126, 176, 226, 0.25)',
+        }}>
+          <div style={{fontFamily: displayFont, fontSize: 12, letterSpacing: 0.5, marginBottom: 4}}>
+            REWARD BREAKDOWN
+          </div>
+          <div style={{display: 'flex', flexDirection: 'column', gap: 3}}>
+            {componentEntries.slice(0, 8).map(([key, value]) => (
+              <RewardBar key={key} label={formatRewardLabel(key)} value={value} maxAbs={maxAbs} />
+            ))}
+          </div>
+          <div style={{
+            fontSize: 13, fontWeight: 700, marginTop: 5, color: '#ffd482',
+            fontFamily: displayFont,
+          }}>
+            Total: {(event.reward ?? 0).toFixed(1)}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
 export const RolloutWrestlingComposition = (props: MatchInput) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
@@ -482,8 +669,19 @@ export const RolloutWrestlingComposition = (props: MatchInput) => {
     impactColor = state.impactColor;
     impactX = (state.attackerX + state.defenderX) / 2;
     impactY = 468;
-    headline = state.ticker;
-    detail = state.commentary;
+    const evalMeta = context.step.event.evalMeta;
+    if (evalMeta) {
+      const attackLabel = evalMeta.predictedAttack ? 'ATTACK DETECTED' : 'NO ATTACK';
+      const failLabel = evalMeta.predictedFailure ? '+ FAILURE' : '';
+      headline = `${attackLabel} ${failLabel}`.trim();
+      const correct = evalMeta.goldAttack !== undefined && evalMeta.predictedAttack === evalMeta.goldAttack;
+      detail = correct
+        ? `Correct verdict. ${evalMeta.rootCause || state.commentary}`
+        : `Wrong verdict. ${evalMeta.rootCause || state.commentary}`;
+    } else {
+      headline = state.ticker;
+      detail = state.commentary;
+    }
     riskForBroadcast = context.step.event.riskScore ?? 0;
   }
 
@@ -807,6 +1005,10 @@ export const RolloutWrestlingComposition = (props: MatchInput) => {
           risk={riskForBroadcast}
           ticker={headline}
         />
+      ) : null}
+
+      {context.scene === 'action' && context.step.event.evalMeta ? (
+        <EvalInfoPanel event={context.step.event} />
       ) : null}
 
       {context.scene === 'intro' ? (

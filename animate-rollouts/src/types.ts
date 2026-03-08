@@ -9,6 +9,23 @@ export type RolloutEvent = {
   reward?: number;
   riskScore?: number;
   timestamp?: string;
+  evalMeta?: {
+    episodeId?: string;
+    attackFamily?: string;
+    difficulty?: number;
+    task?: string;
+    predictedAttack?: boolean;
+    predictedFailure?: boolean;
+    predictedRisk?: string;
+    predictedAction?: string;
+    violationTypes?: string[];
+    culpritSpanIds?: string[];
+    rootCause?: string;
+    rewardComponents?: Record<string, number>;
+    goldAttack?: boolean;
+    goldFailure?: boolean;
+    valid?: boolean;
+  };
 };
 
 export type StepTiming = {
