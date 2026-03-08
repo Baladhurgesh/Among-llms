@@ -1,6 +1,7 @@
 const state = {
   episodes: [],
   currentObservation: null,
+  currentEnvState: null,
   socket: null,
 };
 
@@ -106,12 +107,25 @@ function selectedEpisode() {
 }
 
 function updateResults(observation) {
-  const details = observation?.metadata?.reward_details || {};
-  rewardTotal.textContent = observation?.reward ?? "-";
-  rewardComponents.textContent = pretty(details.components || {});
-  const logs = observation?.metadata?.logs || [];
-  const errors = observation?.metadata?.errors || [];
+  const rewardDetails =
+    state.currentEnvState?.reward_details ||
+    observation?.metadata?.reward_details ||
+    {};
+  const totalReward =
+    observation?.reward ??
+    rewardDetails.total_reward ??
+    rewardDetails.raw_total_reward ??
+    "-";
+  rewardTotal.textContent = totalReward;
+  rewardComponents.textContent = pretty(rewardDetails.components || {});
+  const logs = state.currentEnvState?.logs || observation?.metadata?.logs || [];
+  const errors = state.currentEnvState?.errors || observation?.metadata?.errors || [];
   logsBox.textContent = `logs:\n${pretty(logs)}\n\nerrors:\n${pretty(errors)}`;
+}
+
+async function refreshEnvState() {
+  const payload = await wsRequest({ type: "state" });
+  state.currentEnvState = payload?.data || {};
 }
 
 async function loadEpisodes() {
@@ -147,17 +161,22 @@ async function resetEnv() {
     return;
   }
   setStatus(`resetting ${ep.episode_id}...`);
-  const response = await wsRequest({
-    type: "reset",
-    data: { episode_id: ep.episode_id },
-  });
-  const parsed = unwrapObservationMessage(response);
-  state.currentObservation = parsed.observation;
-  state.currentObservation.reward = parsed.reward ?? state.currentObservation.reward;
-  state.currentObservation.done = parsed.done ?? state.currentObservation.done;
-  traceBox.textContent = state.currentObservation.oversight_input || "";
-  updateResults(state.currentObservation);
-  setStatus(`ready (${ep.episode_id})`);
+  try {
+    const response = await wsRequest({
+      type: "reset",
+      data: { episode_id: ep.episode_id },
+    });
+    const parsed = unwrapObservationMessage(response);
+    state.currentObservation = parsed.observation;
+    state.currentObservation.reward = parsed.reward ?? state.currentObservation.reward;
+    state.currentObservation.done = parsed.done ?? state.currentObservation.done;
+    await refreshEnvState();
+    traceBox.textContent = state.currentObservation.oversight_input || "";
+    updateResults(state.currentObservation);
+    setStatus(`ready (${ep.episode_id})`);
+  } catch (err) {
+    setStatus(`reset failed: ${err.message}`);
+  }
 }
 
 async function submitStep() {
@@ -172,17 +191,22 @@ async function submitStep() {
     setStatus(`invalid JSON: ${err.message}`);
     return;
   }
-  setStatus("submitting step...");
-  const response = await wsRequest({
-    type: "step",
-    data: action,
-  });
-  const parsed = unwrapObservationMessage(response);
-  state.currentObservation = parsed.observation;
-  state.currentObservation.reward = parsed.reward ?? state.currentObservation.reward;
-  state.currentObservation.done = parsed.done ?? state.currentObservation.done;
-  updateResults(state.currentObservation);
-  setStatus(`done: reward=${state.currentObservation.reward}`);
+  try {
+    setStatus("submitting step...");
+    const response = await wsRequest({
+      type: "step",
+      data: action,
+    });
+    const parsed = unwrapObservationMessage(response);
+    state.currentObservation = parsed.observation;
+    state.currentObservation.reward = parsed.reward ?? state.currentObservation.reward;
+    state.currentObservation.done = parsed.done ?? state.currentObservation.done;
+    await refreshEnvState();
+    updateResults(state.currentObservation);
+    setStatus(`done: reward=${state.currentObservation.reward}`);
+  } catch (err) {
+    setStatus(`step failed: ${err.message}`);
+  }
 }
 
 async function bootstrap() {
