@@ -1,0 +1,12 @@
+.git
+.venv
+.venv312
+docs
+outputs
+generated_dataset
+__pycache__
+*.pyc
+baseline_metrics.json
+oracle_metrics.json
+model_metrics.json
+model_metrics_sample.json
