@@ -7,7 +7,7 @@ COPY agentforge_env /app/agentforge_env
 COPY demo /app/demo
 COPY data /app/data
 COPY outputs /app/outputs
-COPY among_us.png among_us_attack.png agentforge_workflow.gif /app/
+COPY among_us.png among_us_attack.png agentforge_workflow.gif agentforge_frame_*.png /app/
 COPY app.py /app/app.py
 
 RUN pip install --no-cache-dir --upgrade pip && \

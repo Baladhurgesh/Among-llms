@@ -657,16 +657,100 @@ def build_demo() -> gr.Blocks:
                 "the attacker injection, the compromised defender, and how the overseer "
                 "verdict changes **before vs after RL training**."
             )
-            gif_path = ROOT / "agentforge_workflow.gif"
-            if gif_path.exists():
-                _gif_b64 = base64.b64encode(gif_path.read_bytes()).decode()
+            _frame_names = [
+                ("01_title", "Overview"),
+                ("02_scenario", "Scenario"),
+                ("03_ground_truth", "Ground Truth"),
+                ("04_before_training", "Before RL"),
+                ("05_after_training", "After RL"),
+                ("06_comparison", "Comparison"),
+                ("07_pipeline", "Pipeline"),
+            ]
+            _frame_b64s = []
+            for fname, _ in _frame_names:
+                fp = ROOT / f"agentforge_frame_{fname}.png"
+                if fp.exists():
+                    _frame_b64s.append(base64.b64encode(fp.read_bytes()).decode())
+            if _frame_b64s:
+                _img_js_array = ",".join(f'"{b}"' for b in _frame_b64s)
+                _label_js_array = ",".join(f'"{l}"' for _, l in _frame_names)
                 gr.HTML(f"""
-                <div style="display:flex;justify-content:center;margin:16px 0 28px;">
-                    <img src="data:image/gif;base64,{_gif_b64}" alt="AgentForge Workflow"
-                         style="max-width:100%;border-radius:14px;
-                                border:1px solid rgba(91,142,255,0.15);
-                                box-shadow:0 4px 24px rgba(0,0,0,0.4);" />
+                <div id="wf-carousel" style="position:relative;max-width:100%;margin:16px auto 28px;
+                            user-select:none;">
+                  <!-- Image -->
+                  <img id="wf-img" src="data:image/png;base64,{_frame_b64s[0]}"
+                       style="width:100%;border-radius:14px;
+                              border:1px solid rgba(91,142,255,0.15);
+                              box-shadow:0 4px 24px rgba(0,0,0,0.4);
+                              transition:opacity 0.3s ease;" />
+                  <!-- Left arrow -->
+                  <button id="wf-prev" onclick="wfNav(-1)" style="
+                      position:absolute;left:12px;top:50%;transform:translateY(-50%);
+                      width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;
+                      background:rgba(0,0,0,0.6);color:#fff;font-size:20px;font-weight:700;
+                      backdrop-filter:blur(8px);transition:all 0.2s ease;
+                      display:flex;align-items:center;justify-content:center;
+                      box-shadow:0 2px 12px rgba(0,0,0,0.3);">&#8249;</button>
+                  <!-- Right arrow -->
+                  <button id="wf-next" onclick="wfNav(1)" style="
+                      position:absolute;right:12px;top:50%;transform:translateY(-50%);
+                      width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;
+                      background:rgba(0,0,0,0.6);color:#fff;font-size:20px;font-weight:700;
+                      backdrop-filter:blur(8px);transition:all 0.2s ease;
+                      display:flex;align-items:center;justify-content:center;
+                      box-shadow:0 2px 12px rgba(0,0,0,0.3);">&#8250;</button>
+                  <!-- Bottom bar: dots + label -->
+                  <div style="display:flex;align-items:center;justify-content:center;gap:14px;
+                              margin-top:12px;">
+                    <div id="wf-dots" style="display:flex;gap:8px;align-items:center;"></div>
+                    <span id="wf-label" style="font-size:0.88em;font-weight:600;color:#8da0cc;
+                          letter-spacing:0.5px;min-width:100px;text-align:center;"></span>
+                    <span id="wf-counter" style="font-size:0.8em;color:#475569;font-weight:500;"></span>
+                  </div>
                 </div>
+                <script>
+                (function() {{
+                  const imgs = [{_img_js_array}];
+                  const labels = [{_label_js_array}];
+                  let idx = 0;
+                  const el = document.getElementById('wf-img');
+                  const dots = document.getElementById('wf-dots');
+                  const lbl = document.getElementById('wf-label');
+                  const ctr = document.getElementById('wf-counter');
+                  // build dots
+                  for (let i = 0; i < imgs.length; i++) {{
+                    const d = document.createElement('span');
+                    d.className = 'wf-dot';
+                    d.style.cssText = 'width:10px;height:10px;border-radius:50%;cursor:pointer;transition:all 0.2s ease;';
+                    d.onclick = function() {{ idx = i; render(); }};
+                    dots.appendChild(d);
+                  }}
+                  function render() {{
+                    el.style.opacity = 0.5;
+                    setTimeout(function() {{
+                      el.src = 'data:image/png;base64,' + imgs[idx];
+                      el.style.opacity = 1;
+                    }}, 150);
+                    lbl.textContent = labels[idx];
+                    ctr.textContent = (idx+1) + ' / ' + imgs.length;
+                    const allDots = dots.querySelectorAll('.wf-dot');
+                    allDots.forEach(function(d, i) {{
+                      d.style.background = i === idx ? '#5b8eff' : 'rgba(255,255,255,0.2)';
+                      d.style.transform = i === idx ? 'scale(1.3)' : 'scale(1)';
+                    }});
+                  }}
+                  window.wfNav = function(dir) {{
+                    idx = (idx + dir + imgs.length) % imgs.length;
+                    render();
+                  }};
+                  // keyboard support
+                  document.addEventListener('keydown', function(e) {{
+                    if (e.key === 'ArrowRight') wfNav(1);
+                    if (e.key === 'ArrowLeft') wfNav(-1);
+                  }});
+                  render();
+                }})();
+                </script>
                 """)
 
             gr.Markdown("---")
