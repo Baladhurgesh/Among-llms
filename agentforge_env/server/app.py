@@ -11,7 +11,6 @@ except ImportError:  # pragma: no cover
 
 from ..models import OversightAction, OversightObservation
 from .environment import AgentForgeOversightEnvironment
-from .ui import router as ui_router
 
 
 DATA_PATH = Path(os.getenv("AGENTFORGE_EPISODES_PATH", Path(__file__).resolve().parents[2] / "data" / "seed_episodes.json"))
@@ -28,5 +27,3 @@ app: FastAPI = create_fastapi_app(
     observation_cls=OversightObservation,
     max_concurrent_envs=8,
 )
-
-app.include_router(ui_router)

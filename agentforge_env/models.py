@@ -25,6 +25,7 @@ class OversightObservation(Observation):
     episode_id: str
     track: str
     difficulty: int
+    observation_level: int = 0
     oversight_input: str
     allowed_violation_types: list[str]
     allowed_risk_levels: list[str]

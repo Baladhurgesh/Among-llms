@@ -10,11 +10,14 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "fastapi",
+  "gradio",
   "jsonschema",
+  "matplotlib",
   "openenv-core",
+  "pillow",
   "pydantic",
   "uvicorn",
 ]
 
 [tool.setuptools.packages.find]
-include = ["agentforge_env*", "eval*", "train*"]
+include = ["agentforge_env*", "demo*"]

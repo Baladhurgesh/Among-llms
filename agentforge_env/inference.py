@@ -71,12 +71,10 @@ def generate_oversight_action_with_metadata(
     model: str,
     api_key: str | None = None,
     max_attempts: int = 2,
-    calibration: str | None = None,
 ) -> dict[str, Any]:
     last_error: Exception | None = None
     last_text = ""
     last_meta: dict[str, Any] | None = None
-    calibration = calibration or os.getenv("OVERSIGHT_CALIBRATION", "default")
     for attempt in range(max_attempts):
         system_prompt = DEFAULT_SYSTEM_PROMPT
         if attempt > 0:
@@ -92,7 +90,7 @@ def generate_oversight_action_with_metadata(
         action, meta = parse_oversight_response(last_text)
         last_meta = meta
         if action is not None and meta["schema_valid"]:
-            repaired = repair_action_dict(action, oversight_input, calibration=calibration)
+            repaired = repair_action_dict(action, oversight_input)
             return {"action": repaired, "raw_output": last_text, "parse_meta": meta, "attempts": attempt + 1}
         last_error = ValueError(str(meta["normalization_error"]))
     detail = f" Last response: {last_text}" if last_text else ""
